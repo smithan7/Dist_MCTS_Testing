@@ -27,6 +27,12 @@ public:
 	cv::String get_task_selection_method() { return this->task_selection_method[this->test_iter]; };
 	std::vector<bool> get_task_status_list() { return this->task_status_list; };
 	std::string get_mcts_search_type() { return this->mcts_search_type; };
+	std::string get_mcts_reward_type() { return this->mcts_reward_type; };
+	std::string get_impact_style() { return this->impact_style; };
+	void set_mcts_reward_type(const std::string & rt) { this->mcts_reward_type = rt; };
+	bool get_task_status(const int &ti) { return this->task_status_list[ti]; };
+	int get_mcts_n_kids() { return this->mcts_n_kids; };
+
 
 	// utility functions
 	bool a_star(const int & start, const int & goal, const bool &pay_obstacle_cost, std::vector<int>& path, double & length);
@@ -51,7 +57,8 @@ private:
 
 	int test_iter, n_iterations;
 	double c_time, dt, end_time;
-	std::string mcts_search_type;
+	std::string mcts_search_type, mcts_reward_type, impact_style;
+	int mcts_n_kids;
 	bool show_display, score_run;
 	double last_plot_time;
 	int n_nodes, n_agents;

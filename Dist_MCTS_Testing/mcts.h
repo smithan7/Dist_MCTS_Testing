@@ -29,11 +29,12 @@ public:
 	void set_task_index(const int &ti);
 
 	// call from parent not self
-	void search_from_root(std::vector<bool> &task_status, const bool &update_probability_tasks_available, const int &planning_iter);
-	void search(const int &depth_in, double &passed_reward, const double &time_in, std::vector<bool> &task_status, const bool &update_probability, const int &planning_iter);
+	void search_from_root(std::vector<bool> &task_status, const int &last_planning_iter_end, const int &planning_iter);
+	void search(const int &depth_in, double &passed_reward, const double &time_in, std::vector<bool> &task_status, const int &last_planning_iter_end, const int &planning_iter);
 	bool kid_pruning_heuristic(const std::vector<bool> &task_status);
 	void reset_task_availability_probability() { this->probability_task_available = -1.0; };
 	void set_probability(const double &sum_value, const double &parent_probability);
+	void set_probability(const double &sum, const double &min_value, const double &max_value, const double &parent_probability);
 	void set_as_root();
 	void sample_tree_and_advertise_task_probabilities(Agent_Coordinator* coord_in); // get my probabilities to advertise
 	bool exploit_tree(int &goal_index, std::vector<std::string> &args, std::vector<double> &vals);
@@ -53,7 +54,8 @@ private:
 	void update_min_branch_value_kid(MCTS* gc); // check if I need to update max kid and update if I have to
 	void update_kid_values_with_new_probabilities();
 	void update_branch_values(MCTS* gc, const double &kids_prior_branch_value); // update my branch value, min, max, and sum
-	
+	void erase_null_kids();
+
 	bool find_kid_to_search(const std::vector<bool> &task_status, MCTS* &gc, const int &search_iter);
 	void find_kid_probabilities(); // find and assign my kid probabilities
 
@@ -79,7 +81,7 @@ private:
 	double exploit_value; // weighted expected value
 	double explore_value; // value of searching rare arms
 	double search_value; // exploit value + explore value
-
+	int last_planning_iter_end; // what was the end of the last iter called, to know if i need to resample the probabilities
 	double wait_time; // how long do I wait if I select a null action
 
 	std::string search_type;

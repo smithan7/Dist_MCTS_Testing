@@ -35,7 +35,6 @@ void Agent_Coordinator::reset_prob_actions() {
 	}
 }
 
-
 bool Agent_Coordinator::get_advertised_task_claim_probability(int task_num, double query_time, double &prob_taken, World* world) {
 	if (task_num < 0 || task_num > this->n_tasks) {
 		return false;
@@ -88,6 +87,18 @@ double Agent_Coordinator::get_reward_impact(int task_i, int agent_i, double comp
 
 	double my_reward = task->get_reward_at_time(completion_time);
 
+	if (my_reward <= 0.0) {
+		return 0.0;
+	}
+	
+	if (world->get_impact_style() == "before_and_after" || world->get_impact_style() == "optimal" || world->get_impact_style() == "fixed") {
+		double p_taken = 0.0;
+		if (this->agent->get_coordinator()->get_advertised_task_claim_probability(task_i, completion_time, p_taken, world)) {
+			my_reward *= (1 - p_taken);
+		}
+	}
+		
+
 	// go through each agent's coordinator and check this task for claims AFTER my completion time.
 	Probability_Node shared_plan(task_i);
 	for (int a = 0; a < world->get_n_agents(); a++) {
@@ -95,7 +106,7 @@ double Agent_Coordinator::get_reward_impact(int task_i, int agent_i, double comp
 			Agent_Coordinator* coord = world->get_agents()[a]->get_coordinator();
 			// get all active claims by each agent and add to the shared plan
 			std::vector<double> p, t;
-			if (coord->get_claims_after(task_i, 0.0, p, t)) {
+			if (coord->get_claims_after(task_i, completion_time, p, t)) {
 				for (size_t i = 0; i < p.size(); i++) {
 					shared_plan.add_stop_to_shared_path(t[i], p[i]);
 				}
@@ -107,7 +118,7 @@ double Agent_Coordinator::get_reward_impact(int task_i, int agent_i, double comp
 	// if they have a claim, get the P(complete | time) * reward(time)
 	std::vector<double> t, p;
 	if (shared_plan.get_claims_after(completion_time, p, t)) {
-		// there are claims after mine
+		// there are claims after mine, remvoe reward they will (probably) get
 
 		for (size_t c = 0; c < p.size(); c++) {
 			// here p[c] = p[t_c] - p[t_{c-1}]
@@ -116,7 +127,7 @@ double Agent_Coordinator::get_reward_impact(int task_i, int agent_i, double comp
 	}
 
 	// impact is my reward - the reward other agents will get if I don't get it right now
-	double impact = my_reward - c_reward;
+	double impact = std::max(my_reward - c_reward, 0.0);
 
 	return impact;
 }

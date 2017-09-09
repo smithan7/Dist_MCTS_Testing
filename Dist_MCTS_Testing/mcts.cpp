@@ -65,23 +65,26 @@ MCTS::MCTS(World* world, Map_Node* task_in, Agent* agent_in, MCTS* parent, const
 	// few useful constants
 	if (this->world->get_task_selection_method() == "mcts_task_by_completion_reward") {
 		this->reward_weighting = 1.0; // how important is the reward in the value function
-		this->distance_weighting = 0.001; // how important is the travel cost in the value function
+		this->distance_weighting = 0.0001; // how important is the travel cost in the value function
 	}
 	else if (this->world->get_task_selection_method() == "mcts_task_by_completion_value") {
 		this->reward_weighting = 1.0; // how important is the reward in the value function
 		this->distance_weighting = 1.0; // how important is the travel cost in the value function
 	}
+	else if (this->world->get_task_selection_method() == "mcts_task_by_completion_reward_impact") {
+		this->reward_weighting = 1.0; // how important is the reward in the value function
+		this->distance_weighting = 0.0001; // how important is the travel cost in the value function
+	}
 
 	this->search_type = this->world->get_mcts_search_type();
 	this->beta = 20;// 1.41; // ucb = 1.41, d-ucb = 1.41, sw-ucb = 0.705
 	this->epsilon = 0.5; // ucb = 0.5, d-ucb = 0.05, sw-ucb = 0.05
-	this->gamma = 1.0; // ucb = n/a~1.0, d-ucb = 0.9, sw-ucb = 0.9
+	this->gamma = 0.9; // ucb = n/a~1.0, d-ucb = 0.9, sw-ucb = 0.9
 	this->window_width = 5000; // how far back in my search history should I include searches
 	this->sampling_probability_threshold = 0.01; // how low of probability will I continue to sample and report
 }
 
 bool MCTS::make_kids( std::vector<bool> &task_status ) {
-	
 	if (this->kids.size() > 0) {
 		for (size_t i = 0; i < this->kids.size(); i++) {
 			this->kids[i]->burn_branches();
@@ -99,8 +102,35 @@ bool MCTS::make_kids( std::vector<bool> &task_status ) {
 		if (task_status[i]) {
 			MCTS* kiddo = new MCTS(world, world->get_nodes()[i], this->agent, this, int(this->kids.size()), this->completion_time);
 			if (kiddo->kid_pruning_heuristic(task_status)) {
-				kids_made = true;
 				this->kids.push_back(kiddo);
+
+				/*
+				kids_made = true;
+				if (kids.size() > 0) {
+					// only keep the top X kids
+					int n_kids = this->kids.size();
+					bool kid_added = false;
+					for (int i = 0; i < n_kids; i++) {
+						if (kiddo->get_expected_value() > this->kids[i]->get_expected_value()) {
+							this->kids.insert(this->kids.begin() + i, kiddo);
+							kid_added = true;
+							break;
+						}
+					}
+					if (kid_added && this->kids.size() > this->world->get_mcts_n_kids()) {
+						delete this->kids[this->kids.size() - 1];
+						this->kids.erase(this->kids.begin() + this->world->get_mcts_n_kids());
+					}
+					else if(!kid_added && this->kids.size() < this->world->get_mcts_n_kids()){
+						this->kids.push_back(kiddo);
+					}
+				}
+				else {
+					this->kids.push_back(kiddo);
+				}
+				*/
+				
+				
 			}
 			else {
 				delete kiddo;
@@ -128,6 +158,7 @@ void MCTS::set_task_index(const int &ti) {
 void MCTS::find_min_branch_value_kid() {
 	// find the kid with minimum expected value
 	this->min_kid_branch_value = double(INFINITY);
+	this->min_kid_index = -1;
 	
 	for (size_t i = 0; i < this->kids.size(); i++) {
 		if (this->kids[i]->get_branch_value() < this->min_kid_branch_value) {
@@ -140,6 +171,7 @@ void MCTS::find_min_branch_value_kid() {
 void MCTS::find_max_branch_value_kid() {
 	// find the kid with the maximum expected value
 	this->max_kid_branch_value = -double(INFINITY);
+	this->max_kid_index = -1;
 	
 	for (size_t i = 0; i < this->kids.size(); i++) {
 		if (this->kids[i]->get_branch_value() > this->max_kid_branch_value) {
@@ -226,7 +258,31 @@ void MCTS::find_kid_probabilities() {
 
 	// for all kids, assign their probability
 	for (size_t i = 0; i < this->kids.size(); i++) {
-		this->kids[i]->set_probability(this->sum_kid_branch_value, this->probability);
+		//TODO this->kids[i]->set_probability(this->sum_kid_branch_value, this->probability);
+		this->kids[i]->set_probability(this->sum_kid_branch_value, this->min_kid_branch_value, this->max_kid_branch_value, this->probability);
+	}
+}
+
+void MCTS::set_probability(const double &sum, const double &min, const double &max, const double &parent_probability) {
+	// this sets my probability of being selected by my parent
+	
+	//double wv = (this->branch_value - min) / (max - min);
+	double wv = this->branch_value / sum;
+	double ov = 0.0;
+	if (this->branch_value == max) {
+		ov = 1.0;
+	}
+
+	if (this->world->get_impact_style() == "optimal") {
+		this->probability = parent_probability * ov + (1- parent_probability) *wv;
+	}
+	else if (this->world->get_impact_style() == "fixed") {
+		this->probability = 0.5 * ov + (1 - 0.5) *wv;
+		this->probability *= parent_probability;
+	}
+	else {
+		double p = std::min(0.95, parent_probability);
+		this->probability = p * ov + (1 - p) *wv;
 	}
 }
 
@@ -414,11 +470,18 @@ double MCTS::get_expected_value() {
 			this->distance = dist;
 			this->travel_time = this->distance / this->agent->get_travel_vel();
 			this->completion_time = this->parent_time + this->travel_time + this->work_time;
-			this->reward = this->task->get_reward_at_time(this->completion_time);
-			double p_taken = 0.0;
-			if (this->agent->get_coordinator()->get_advertised_task_claim_probability(this->task_index, this->travel_time, p_taken, this->world)) {
-				this->probability_task_available = (1 - p_taken);
-				this->reward *= this->probability_task_available;
+
+
+			if (this->world->get_mcts_reward_type() == "impact") {
+				this->reward = this->agent->get_coordinator()->get_reward_impact(this->task_index, this->agent->get_index(), this->completion_time, this->world);
+			}
+			else {
+				this->reward = this->task->get_reward_at_time(this->completion_time);
+				double p_taken = 0.0;
+				if (this->agent->get_coordinator()->get_advertised_task_claim_probability(this->task_index, this->completion_time, p_taken, this->world)) {
+					this->probability_task_available = (1 - p_taken);
+					this->reward *= this->probability_task_available;
+				}
 			}
 			this->expected_value = this->reward_weighting*this->reward - this->distance_weighting*this->distance;
 		}
@@ -466,7 +529,7 @@ double MCTS::get_expected_value() {
 	if (this->probability_task_available < 0.0) {
 		double p_taken = 0.0;
 		this->reward = this->task->get_reward_at_time(this->completion_time);
-		if (this->agent->get_coordinator()->get_advertised_task_claim_probability(this->task_index, this->travel_time, p_taken, this->world)) {
+		if (this->agent->get_coordinator()->get_advertised_task_claim_probability(this->task_index, this->completion_time, p_taken, this->world)) {
 			this->probability_task_available = (1 - p_taken);
 			this->reward *= this->probability_task_available;
 		}
@@ -489,7 +552,7 @@ void MCTS::update_kid_values_with_new_probabilities() {
 }
 
 
-void MCTS::search_from_root(std::vector<bool> &task_status, const bool &update_probability_tasks_available, const int &planning_iter) {
+void MCTS::search_from_root(std::vector<bool> &task_status, const int &last_planning_iter_end, const int &planning_iter) {
 
 	//make sure work time is set
 	if (this->work_time < 0.0) {
@@ -497,7 +560,8 @@ void MCTS::search_from_root(std::vector<bool> &task_status, const bool &update_p
 	}
 
 	// should I reset probabilities?
-	if (update_probability_tasks_available) {
+	if (this->last_planning_iter_end < last_planning_iter_end) {
+		this->last_planning_iter_end = last_planning_iter_end;
 		this->update_kid_values_with_new_probabilities();
 	}
 
@@ -526,6 +590,9 @@ void MCTS::search_from_root(std::vector<bool> &task_status, const bool &update_p
 
 	if (this->kids.size() > 0) {
 		// if I have kids, then select kid with best search value, and search them
+		// erase kids who are no longer active
+		erase_null_kids();
+		
 		MCTS* gc = NULL;
 		if (this->find_kid_to_search(task_status, gc, planning_iter)) {
 
@@ -535,7 +602,7 @@ void MCTS::search_from_root(std::vector<bool> &task_status, const bool &update_p
 
 			// search the kid's branch 
 			task_status[gc->get_task_index()] = false; // simulate completing the task
-			gc->search(1, kids_branch_value, this->completion_time, task_status, update_probability_tasks_available, planning_iter);
+			gc->search(1, kids_branch_value, this->completion_time, task_status, last_planning_iter_end, planning_iter);
 			task_status[gc->get_task_index()] = true; // mark the task incomplete, undo simulation
 
 			if (this->search_type == "SW-UCT") {
@@ -560,7 +627,7 @@ void MCTS::search_from_root(std::vector<bool> &task_status, const bool &update_p
 	this->find_max_branch_value_kid();
 }
 
-void MCTS::search(const int &depth_in, double &passed_branch_value, const double &time_in, std::vector<bool> &task_status, const bool &update_probability_tasks_available, const int &planning_iter) {
+void MCTS::search(const int &depth_in, double &passed_branch_value, const double &time_in, std::vector<bool> &task_status, const int &last_planning_iter_end, const int &planning_iter) {
 	
 	if (task_status[this->task_index] == true) {
 		std::cout << "bad task" << std::endl;
@@ -570,22 +637,27 @@ void MCTS::search(const int &depth_in, double &passed_branch_value, const double
 		// if I am past the max search depth i have 0 search reward and should return without adding to passed branch value
 		return;
 	}
-	else {
-		if (update_probability_tasks_available) {
-			this->update_kid_values_with_new_probabilities();
-		}
-		// I will be searched, count it!
-		this->number_pulls++;
-		this->explore_value = -1.0; // reset explore value so it is recomputed next iter, this is implemented in get_explore_value()
+	
+	// should I reset probabilities?
+	if (this->last_planning_iter_end < last_planning_iter_end) {
+		this->last_planning_iter_end = last_planning_iter_end;
+		this->update_kid_values_with_new_probabilities();
+	}
+	// I will be searched, count it!
+	this->number_pulls++;
+	this->explore_value = -1.0; // reset explore value so it is recomputed next iter, this is implemented in get_explore_value()
 
-		if ( abs(time_in - this->parent_time) > 0.2) {
-			this->parent_time = time_in;
-			this->distance = -1;
-			this->get_expected_value();
-		}
+	if ( abs(time_in - this->parent_time) > 0.2) {
+		this->parent_time = time_in;
+		this->distance = -1;
+		this->get_expected_value();
 	}
 
 	if (this->kids.size() > 0) {
+
+		// get kis who no longer have active tasks
+		this->erase_null_kids();
+
 		// if I have kids, then select kid with best search value, and search them
 		MCTS* gc = NULL;
 		if (this->find_kid_to_search(task_status, gc, planning_iter)) {
@@ -596,9 +668,10 @@ void MCTS::search(const int &depth_in, double &passed_branch_value, const double
 
 			// search the kid's branch 
 			task_status[gc->get_task_index()] = false; // simulate completing the task
-			gc->search(depth_in + 1, kids_branch_value, this->completion_time, task_status, update_probability_tasks_available, planning_iter);
+			gc->search(depth_in + 1, kids_branch_value, this->completion_time, task_status, last_planning_iter_end, planning_iter);
 			task_status[gc->get_task_index()] = true; // mark the task incomplete, undo simulation
 
+			// update uct sutff
 			if (this->search_type == "SW-UCT") {
 				gc->add_sw_uct_update(this->min_kid_branch_value, this->max_kid_branch_value, planning_iter);
 			}
@@ -621,6 +694,23 @@ void MCTS::search(const int &depth_in, double &passed_branch_value, const double
 	this->find_min_branch_value_kid();
 	this->find_max_branch_value_kid();
 	passed_branch_value = this->branch_value;
+}
+
+void MCTS::erase_null_kids() {
+	for (size_t i = 0; i < this->kids.size(); i++) {
+		int kti = this->kids[i]->get_task_index();
+		if (!world->get_task_status(kti)) {
+			this->kids[i]->burn_branches();
+			delete this->kids[i];
+			this->kids.erase(this->kids.begin() + i);
+			if (i == this->max_kid_index) {
+				this->find_max_branch_value_kid();
+			}
+			if (i == this->min_kid_index) {
+				this->find_min_branch_value_kid();
+			}
+		}
+	}
 }
 
 bool MCTS::make_nbr_kids(const std::vector<bool> &task_status) {

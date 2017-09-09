@@ -73,9 +73,7 @@ void Probability_Node::add_stop_to_my_path(double time, double prob) {
 	//UE_LOG(LogTemp, Error, TEXT("Probability_Node::add_stop_to_my_path: completion_time.size(): %i"), this->completion_time.size());
 	int time_index = -1;
 	for (size_t i = 1; i < this->completion_time.size(); i++) { // find place to insert the new point so that path is in temporal order
-															 //UE_LOG(LogTemp, Error, TEXT("%0.2f > %0.2f && %0.2f <= %0.2f = %i"), time, this->completion_time[i - 1], time, this->completion_time[i], time > this->completion_time[i - 1] && time <= this->completion_time[i]);
-		if (time > this->completion_time[i - 1] && time <= this->completion_time[i]) { // needs to be lower than the next one not larger
-																				 //UE_LOG(LogTemp, Error, TEXT("Probability_Node::add_stop_to_my_path: %i"), i);
+		if (time > this->completion_time[i - 1] && time <= this->completion_time[i] && this->probability_of_completion[i-1] < 1.0) { // needs to be lower than the next one not larger
 			time_index = int(i);
 			break;
 		}

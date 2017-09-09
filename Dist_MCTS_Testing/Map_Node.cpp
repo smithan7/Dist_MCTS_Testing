@@ -91,11 +91,11 @@ void Map_Node::activate(World* world) {
 	this->start_time = world->get_c_time();
 
 	// what type of reward window will I have?
-	std::cout << "Map_Node::activate: fixed typing" << std::endl;
-	this->reward_window_type = 0;// rand() % this->n_reward_window_types;
+	//std::cout << "Map_Node::activate: fixed typing" << std::endl;
+	this->reward_window_type = rand() % this->n_reward_window_types;
 	// what is my initial reward?
-	std::cout << "Map_Node::activate: fixed reward value" << std::endl;
-	this->initial_reward = 1000;// (this->max_reward - this->min_reward) * double(rand()) / double(RAND_MAX) + this->min_reward;
+	//std::cout << "Map_Node::activate: fixed reward value" << std::endl;
+	this->initial_reward = (this->max_reward - this->min_reward) * double(rand()) / double(RAND_MAX) + this->min_reward;
 	// how much work to complete me?
 	this->remaining_work = (this->max_work - this->min_work) * double(rand()) / double(RAND_MAX) + this->min_work;
 

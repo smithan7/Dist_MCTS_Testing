@@ -25,6 +25,9 @@ World::World(const int &param_file, const bool &display_plot, const bool &score_
 	this->task_selection_method = task_selection_method;
 	this->test_iter = 0;
 	this->mcts_search_type = "SW-UCT"; // UCT or SW-UCT
+	this->mcts_reward_type = "normal"; // "impact";
+	this->impact_style = "nn";
+	this->mcts_n_kids = 5;
 
 	if (this->param_file_index > 0) {
 		// load  everything from xml
@@ -40,12 +43,12 @@ World::World(const int &param_file, const bool &display_plot, const bool &score_
 		// time stuff
 		this->c_time = 0.0;
 		this->dt = 0.1;
-		this->end_time = 60.0;
+		this->end_time = 30.0;
 
 		// map and PRM stuff
 		this->map_height = 1000.0; 
 		this->map_width = 1000.0; // 1000
-		this->n_nodes = 10; 
+		this->n_nodes = 50; 
 		this->k_map_connections = 5;
 		this->k_connection_radius = 500.0;
 		this->p_connect = 1.0;
@@ -55,14 +58,14 @@ World::World(const int &param_file, const bool &display_plot, const bool &score_
 		
 		// task stuff
 		this->n_task_types = 4; // how many types of tasks are there
-		this->p_task_initially_active = 0.5; // how likely is it that a task is initially active
+		this->p_task_initially_active = 0.25; // how likely is it that a task is initially active, 3-0.25, 5-0.5, 7-0.75
 		this->p_impossible_task = 0.0; // how likely is it that an agent is created that cannot complete a task
 		this->p_activate_task = 0.0;// 1.0*this->dt; // how likely is it that I will activate a task each second? *dt accounts per iters per second
 		this->min_task_time = 10.0; // shortest time to complete a task
 		this->max_task_time = 60.0; // longest time to complete a task
 
 		// agent stuff
-		this->n_agents = 1; // how many agents
+		this->n_agents = 3; // how many agents
 		this->n_agent_types = 4; // how many types of agents
 		this->min_travel_vel = 15.0; // 5 - slowest travel speed
 		this->max_travel_vel = 50.0; // 25 - fastest travel speed
@@ -80,6 +83,22 @@ World::World(const int &param_file, const bool &display_plot, const bool &score_
 	}
 
 	for (this->test_iter = 0; this->test_iter < this->n_iterations; this->test_iter++) {
+
+		if (this->task_selection_method[test_iter] == "mcts_task_by_completion_reward_impact_before_and_after") {
+			this->impact_style = "before_and_after";
+			this->task_selection_method[test_iter] = "mcts_task_by_completion_reward_impact";
+		}
+
+		if (this->task_selection_method[test_iter] == "mcts_task_by_completion_reward_impact_optimal") {
+			this->impact_style = "optimal";
+			this->task_selection_method[test_iter] = "mcts_task_by_completion_reward_impact";
+		}
+
+		if (this->task_selection_method[test_iter] == "mcts_task_by_completion_reward_impact_fixed") {
+			this->impact_style = "fixed";
+			this->task_selection_method[test_iter] = "mcts_task_by_completion_reward_impact";
+		}
+
 		// reset randomization
 		srand(this->rand_seed);
 
@@ -122,7 +141,7 @@ void World::clean_up_from_sim() {
 }
 
 void World::run_simulation() {
-	while (this->c_time <= this->end_time) {
+	while (abs(this->c_time - this->end_time) > this->dt/2.0) {
 		this->iterate_all();
 		this->score_and_record_all();
 	}
@@ -443,7 +462,9 @@ void World::display_world(const int &ms) {
 			cv::Point2d tl = cv::Point2d(l.x - d, l.y + d);
 			char text[10];
 			sprintf_s(text, "%i", i);
-			cv::putText(this->PRM_Mat, text, tl, CV_FONT_HERSHEY_COMPLEX, 1.0, cv::Scalar(255, 255, 255), 3);
+			if (this->nodes[i]->is_active()) {
+				cv::putText(this->PRM_Mat, text, tl, CV_FONT_HERSHEY_COMPLEX, 1.0, cv::Scalar(255, 255, 255), 3);
+			}
 		}
 
 	}
@@ -478,6 +499,10 @@ void World::display_world(const int &ms) {
 		//cv::Point2d tl = cv::Point2d(l.x - 3.0, l.y + 3.0);
 		//cv::Point2d br = cv::Point2d(l.x + 3.0, l.y - 3.0);
 		//cv::rectangle(map, cv::Rect(tl, br), orange, -1);
+		char text[10];
+		sprintf_s(text, "%i", i);
+		cv::putText(map, text, l, CV_FONT_HERSHEY_COMPLEX, 1.0, this->agents[i]->get_color(), 3);
+
 	}
 
 	cv::putText(map, this->task_selection_method[this->test_iter], cv::Point2d(40.0, this->map_height + 30.0), CV_FONT_HERSHEY_COMPLEX, 1.0, white, 3);

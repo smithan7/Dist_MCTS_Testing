@@ -21,7 +21,7 @@ private:
 	World* world;
 	MCTS* mcts;
 	std::string task_selection_method; // how do I select tasks
-	int planning_iter, last_planning_iter;
+	int planning_iter, last_planning_iter_end;
 
 	void set_goal(int goal_index);
 	void set_goal(int goal_index, const std::vector<std::string> args, const std::vector<double> vals);

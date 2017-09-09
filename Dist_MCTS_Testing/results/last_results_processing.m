@@ -4,7 +4,7 @@ clc
 
 d=dir('*.txt');
 [~,dx]=sort([d.datenum]);
-newest_file = d(dx(end)).name
+newest_file = d(dx(end-1)).name
 
 
 [time,n_agents,agents,n_task_types,open_reward, task_selection_method] = results_reader(newest_file);
@@ -41,4 +41,9 @@ end
 
 legend(legend_list);
     
+
+figure
+plot(open_reward);
+ ylabel('Collected Reward')
+ grid on
     

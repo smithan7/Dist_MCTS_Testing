@@ -14,7 +14,7 @@ Agent_Planning::Agent_Planning(Agent* agent, World* world_in){
 	this->world = world_in;
 	this->task_selection_method = agent->get_task_selection_method();
 	this->planning_iter = 0;
-	this->last_planning_iter = 0;
+	this->last_planning_iter_end = -1;
 
 	this->set_goal(this->agent->get_edge().x);
 }
@@ -89,18 +89,22 @@ void Agent_Planning::plan() {
 	}
 	// select task by MCTS using reward at time of completion
 	else if (this->task_selection_method.compare("mcts_task_by_completion_reward") == 0) {
+		this->world->set_mcts_reward_type("normal");
 		this->MCTS_task_by_completion_reward();
 	}
 	// select task by MCTS using value at time of completion
 	else if (this->task_selection_method.compare("mcts_task_by_completion_value") == 0) {
+		this->world->set_mcts_reward_type("normal");
 		this->MCTS_task_by_completion_value();
 	}
 	// select task by MCTS using reward impact at time of completion
 	else if (this->task_selection_method.compare("mcts_task_by_completion_reward_impact") == 0) {
+		this->world->set_mcts_reward_type("impact");
 		this->MCTS_task_by_completion_reward_impact();
 	}
 	// select task by MCTS using value impact at time of completion
 	else if (this->task_selection_method.compare("mcts_task_by_completion_value_impact") == 0) {
+		this->world->set_mcts_reward_type("impact");
 		this->MCTS_task_by_completion_value_impact();
 	}
 	// method was not found, let user know
@@ -293,47 +297,55 @@ void Agent_Planning::MCTS_task_by_completion_value() {
 	//std::cout << "mcts_by_comp_value::planning_time: " << double(clock()) / double(CLOCKS_PER_SEC) - s_time << std::endl;
 }
 
+void Agent_Planning::MCTS_task_by_completion_reward_impact() {
+	double s_time = double(clock()) / double(CLOCKS_PER_SEC);
+	this->MCTS_task_selection();
+}
+
+void Agent_Planning::MCTS_task_by_completion_value_impact() {
+	double s_time = double(clock()) / double(CLOCKS_PER_SEC);
+	this->MCTS_task_selection();
+}
+
 void Agent_Planning::MCTS_task_selection(){
 
-	if (!this->mcts) {
-		this->mcts = new MCTS(this->world, this->world->get_nodes()[this->get_agent()->get_loc()], this->get_agent(), NULL, 0, this->world->get_c_time());
-	}
-
 	double reward_in = 0.0;
-	bool update_probability = true;
 	double s_time = double(clock()) / double(CLOCKS_PER_SEC);
 	std::vector<bool> task_list = this->world->get_task_status_list();
-	task_list[this->mcts->get_task_index()] = false;
-
-	TODO should update probability ever be false?
-
-	TODO implement impact rewards to account for future actions of others
-
-	TODO implement moving average on probability of bid
-
-
-	{ // reset probabilities on first iteration then don't!
-		this->planning_iter++;
-		int depth_in = 0;
-		this->mcts->search_from_root(task_list, update_probability, planning_iter);
+	
+	if (!this->mcts) {
+		this->mcts = new MCTS(this->world, this->world->get_nodes()[this->get_agent()->get_loc()], this->get_agent(), NULL, 0, this->world->get_c_time());
+		task_list[this->mcts->get_task_index()] = false;
+		while (double(clock()) / double(CLOCKS_PER_SEC) - s_time <= 99.0*this->world->get_dt()) {
+			this->planning_iter++;
+			int depth_in = 0;
+			this->mcts->search_from_root(task_list, last_planning_iter_end, planning_iter);
+		}
 	}
 
-	update_probability = false;
+	// TODO implement impact rewards to account for future actions of others
+
+	// TODO implement moving average on probability of bid
+
+	task_list[this->mcts->get_task_index()] = false;
 	while( double(clock()) / double(CLOCKS_PER_SEC) - s_time <= this->world->get_dt()){
 		this->planning_iter++;
 		int depth_in = 0;
-		this->mcts->search_from_root(task_list, update_probability, planning_iter);
+		this->mcts->search_from_root(task_list, last_planning_iter_end, planning_iter);
 	}
+	std::cout << "planning_iter: " << planning_iter << std::endl;
+	this->last_planning_iter_end = this->planning_iter;
 	//printf("planning iter %i " << this->planning_iter << " added : " << this->planning_iter - this->last_planning_iter << std::endl;
 	//this->last_planning_iter = this->planning_iter;
 
 	s_time = double(clock()) / double(CLOCKS_PER_SEC);
-	this->agent->get_coordinator()->reset_prob_actions();
+	this->agent->get_coordinator()->reset_prob_actions(); // clear out probable actions before adding the new ones
 	this->mcts->sample_tree_and_advertise_task_probabilities(this->agent->get_coordinator());
 	//printf("sampling time: %0.2f \n", double(clock()) / double(CLOCKS_PER_SEC) - s_time);
 
 	this->agent->get_coordinator()->print_prob_actions();
 
+	//? - comeback to this after below: why does planning iter for agent 0 only do a few iters but for agent 1 it does 100s?
 
 	if (this->agent->get_at_node()) {
 		// I am at a node
@@ -352,20 +364,16 @@ void Agent_Planning::MCTS_task_selection(){
 			}
 			else {
 				// I am not nbrs with the next node, replace root index with current node but don't advance/prune tree
-				int ind = int(this->agent->get_goal()->get_path().size()) - 2; // 
-				this->mcts->set_task_index(this->agent->get_goal()->get_path()[ind]);
-
+				int ind = int(this->agent->get_goal()->get_path().size()) - 2; //
+				if (ind >= 0) {
+					this->mcts->set_task_index(this->agent->get_goal()->get_path()[ind]);
+				}
+				else if (this->agent->get_goal()->get_path().size() == 1) {
+					this->mcts->set_task_index(this->agent->get_goal()->get_index());
+				}
 			}
 		}
 	}
-}
-
-void Agent_Planning::MCTS_task_by_completion_reward_impact(){
-
-}
-
-void Agent_Planning::MCTS_task_by_completion_value_impact(){
-
 }
 
 void Agent_Planning::set_goal(int goal_index) {
