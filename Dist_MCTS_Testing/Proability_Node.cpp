@@ -24,6 +24,19 @@ Probability_Node::Probability_Node(std::vector<double> &p_in, std::vector<double
 	this->task_index = ti_in;
 }
 
+void Probability_Node::update(Probability_Node* msg) {
+	// there are two ways to do this
+		// 1- reporting agents is all agents, 1-n_agents and time is the reporting time, -1 if not heard from. Much easier in search but takes extra memory
+		// 2- reporting agents is only agents that I have heard from, slower in search cheaper in memory.
+
+	for (size_t a = 0; a < msg->reporting_agent.size(); a++) {
+		// if they have a newer reporting time than me, remove my points for that agent
+		if (msg->reporting_agent[a]) {
+
+		}
+	}
+}
+
 bool Probability_Node::claimed() {
 	if (this->completion_time.size() > 2 || this->probability_of_completion.size() > 2) {
 		return true;
@@ -60,13 +73,14 @@ bool Probability_Node::get_claims_after(double query_time, std::vector<double>& 
 Probability_Node::~Probability_Node() {}
 
 
-void Probability_Node::add_stop_to_my_path(double time, double prob) {
+void Probability_Node::add_stop_to_my_path(const double &time, const double &prob) {
 
-	if (prob <= 0) {
+	double p = prob;
+	if (p <= 0) {
 		return;
 	}
 	else {
-		prob = std::min(prob, 1.0);
+		p = std::min(prob, 1.0);
 	}
 
 
@@ -82,23 +96,23 @@ void Probability_Node::add_stop_to_my_path(double time, double prob) {
 						   // yes, insert at the found point
 		if (this->completion_time[time_index] == time) { // is it at the same time?
 													  // yes, merge the two probabilities
-			this->probability_of_completion[time_index] = this->probability_update_exclusive(prob, this->probability_of_completion[time_index]);
+			this->probability_of_completion[time_index] = this->probability_update_exclusive(p, this->probability_of_completion[time_index]);
 		}
 		else {
 			// no, insert the new time
-			double updated_prob = this->probability_update_exclusive(this->probability_of_completion[time_index - 1], prob);
+			double updated_prob = this->probability_update_exclusive(p, this->probability_of_completion[time_index - 1]);
 			this->probability_of_completion.insert(this->probability_of_completion.begin() + time_index, updated_prob);
 			this->completion_time.insert(this->completion_time.begin() + time_index, time);
 
 		}
 		// update all following times
 		for (size_t i = size_t(time_index) + 1; i < this->probability_of_completion.size(); i++) {
-			this->probability_of_completion[i] = this->probability_update_exclusive(this->probability_of_completion[i], prob);
+			this->probability_of_completion[i] = this->probability_update_exclusive(p, this->probability_of_completion[i]);
 		}
 	}
 }
 
-void Probability_Node::add_stop_to_shared_path(double time, double prob) {
+void Probability_Node::add_stop_to_shared_path(const double &time, const double &prob) {
 
 	//UE_LOG(LogTemp, Error, TEXT("Probability_Node::add_stop_to_my_path: completion_time.size(): %i"), this->completion_time.size());
 	int time_index = -1;
@@ -118,19 +132,19 @@ void Probability_Node::add_stop_to_shared_path(double time, double prob) {
 		}
 		else {
 			// no, insert the new time
-			double updated_prob = this->probability_update_inclusive(this->probability_of_completion[time_index], prob);
+			double updated_prob = this->probability_update_inclusive(prob, this->probability_of_completion[time_index]);
 			this->probability_of_completion.insert(this->probability_of_completion.begin() + time_index, updated_prob);
 			this->completion_time.insert(this->completion_time.begin() + time_index, time);
 
 		}
 		// update all following times
 		for (size_t i = size_t(time_index) + 1; i < this->probability_of_completion.size(); i++) {
-			this->probability_of_completion[i] = this->probability_update_inclusive(this->probability_of_completion[i], prob);
+			this->probability_of_completion[i] = this->probability_update_inclusive(prob, this->probability_of_completion[i]);
 		}
 	}
 }
 
-double Probability_Node::get_probability_at_time(double time) {
+double Probability_Node::get_probability_at_time(const double &time) {
 	if (this->completion_time.size() == this->probability_of_completion.size() && this->probability_of_completion.size() != 2) { // ensure they are the same size
 		for (size_t i = 1; i < this->completion_time.size(); i++) {
 			if (time < this->completion_time[i] && time >= this->completion_time[i - 1]) {
@@ -141,17 +155,38 @@ double Probability_Node::get_probability_at_time(double time) {
 	return 0.0f;
 }
 
-double Probability_Node::probability_update_inclusive(double a, double b) {
-	return a + b - a*b;
+double Probability_Node::probability_update_inclusive(const double &plan, const double &msg) {
+	return plan + msg - plan*msg;
 }
 
-double Probability_Node::probability_update_exclusive(double a, double b) {
-	if (1.0f > a + b) {
-		return a + b;
+double Probability_Node::probability_update_exclusive(const double &plan, const double &msg) {
+	if (1.0f > plan + msg) {
+		return plan + msg;
 	}
 	else {
 		return 1.0f;
 	}
+}
+
+double Probability_Node::probability_removal_inclusive(const double &plan, const double &rem) {
+	if (rem >= 1.0) {
+		return 0.0;
+	}
+	if (rem <= 0.0) {
+		return plan;
+	}
+	return (rem - plan)/(rem - 1.0);
+}
+
+double Probability_Node::probability_removal_exclusive(const double &plan, const double &rem) {
+	double val = plan - rem;
+	if (val >= 1.0) {
+		return 1.0;
+	}
+	if (val <= 0.0) {
+		return 0.0;
+	}
+	return val;
 }
 
 double Probability_Node::getPDF(double x) {

@@ -6,6 +6,7 @@
 #include "Agent_Coordinator.h"
 #include "Agent_Planning.h"
 #include "Goal.h"
+#include "Sorted_List.h"
 
 #include <vector>
 #include <random>
@@ -58,14 +59,14 @@ World::World(const int &param_file, const bool &display_plot, const bool &score_
 		
 		// task stuff
 		this->n_task_types = 4; // how many types of tasks are there
-		this->p_task_initially_active = 0.25; // how likely is it that a task is initially active, 3-0.25, 5-0.5, 7-0.75
+		this->p_task_initially_active = 0.625; // how likely is it that a task is initially active, 3-0.25, 5-0.5, 7-0.75
 		this->p_impossible_task = 0.0; // how likely is it that an agent is created that cannot complete a task
 		this->p_activate_task = 0.0;// 1.0*this->dt; // how likely is it that I will activate a task each second? *dt accounts per iters per second
 		this->min_task_time = 10.0; // shortest time to complete a task
 		this->max_task_time = 60.0; // longest time to complete a task
 
 		// agent stuff
-		this->n_agents = 3; // how many agents
+		this->n_agents = 6; // how many agents
 		this->n_agent_types = 4; // how many types of agents
 		this->min_travel_vel = 15.0; // 5 - slowest travel speed
 		this->max_travel_vel = 50.0; // 25 - fastest travel speed
@@ -389,6 +390,18 @@ void World::generate_tasks() {
 	}
 }
 
+void World::get_task_status_list(std::vector<bool> &task_status_list, std::vector<int> &task_set) {
+	task_set.clear();
+	task_status_list.clear();
+
+	task_status_list = this->task_status_list;
+	for (size_t i = 0; i < this->task_status_list.size(); i++) {
+		if (this->task_status_list[i]) {
+			task_set.push_back(int(i));
+		}
+	}
+}
+
 double World::get_team_probability_at_time_except(const double &time, const int &task, const int &except_agent) {
 	double p_task_I_time = 0.0;
 	for (int a = 0; a < this->n_agents; a++) {
@@ -443,7 +456,7 @@ void World::display_world(const int &ms) {
 					double dist = 0.0;
 					if (this->nodes[i]->get_nbr_obstacle_cost(iter, cost) && this->nodes[i]->get_nbr_distance(iter, dist)) {
 						cost = (cost - dist) / cost;
-						cv::Vec3b pink(255.0*(1 - cost), 255.0*(1 - cost), 255);
+						cv::Vec3b pink(uchar(255.0*(1.0 - cost)), uchar(255.0*(1.0 - cost)), 255);
 						cv::line(this->PRM_Mat, this->nodes[i]->get_loc(), this->nodes[index]->get_loc(), pink, 2);
 					}
 				}
@@ -755,6 +768,7 @@ bool World::a_star(const int &start, const int &goal, const bool &pay_obstacle_c
 	// For each node, the total cost of getting from the start node to the goal
 	// by passing by that node. That value is partly known, partly heuristic.
 	std::vector<double> fScore(this->n_nodes, double(INFINITY));
+	
 
 	// For the first node, that value is completely heuristic.
 	this->dist_between_nodes(start, goal, fScore[start]);

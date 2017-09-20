@@ -33,7 +33,7 @@ TreeNode::~TreeNode() {
 	this->children.clear();
 }
 
-void TreeNode::make_children(std::vector<bool> &task_status) {
+void TreeNode::make_children(const std::vector<bool> &task_status) {
 	if (world) { // has tasks and not NULL
 
 		// add a child who stands still
@@ -55,6 +55,23 @@ void TreeNode::make_children(std::vector<bool> &task_status) {
 	}
 }
 
+void TreeNode::make_children(const std::vector<int> &available_tasks) {
+	if (world) { // has tasks and not NUL
+		// add a child who stands still
+		TreeNode* waiting_tree = new TreeNode(world, this->task, this->agent, this->my_depth + 1);
+		children.push_back(waiting_tree);
+
+		// add a child for each active task
+		for (size_t i = 0; i < available_tasks.size(); i++) {
+			TreeNode* tree = new TreeNode(world, world->get_nodes()[i], this->agent, this->my_depth + 1);
+			children.push_back(tree);
+		}
+	}
+	else {
+		std::cerr << "TreeNode::make_children: ra not initialized" << std::endl;
+	}
+}
+
 double TreeNode::evaluate_world_at_time(const double &time) {
 	double penalty = 0;
 	for (int t = 0; t < world->get_nodes().size(); t++) {
@@ -65,7 +82,7 @@ double TreeNode::evaluate_world_at_time(const double &time) {
 	return penalty;
 }
 
-bool TreeNode::get_travel_and_task_completion_time(int location, int goal_task, double time_in, double &distance, double &completion_time) {
+bool TreeNode::get_travel_and_task_completion_time(const int &location, const int &goal_task, const double &time_in, double &distance, double &completion_time) {
 	// distance between me and the task
 	double travel_time;
 	if (world->get_travel_time(location, goal_task, agent->get_travel_step(), agent->get_pay_obstacle_cost(), travel_time)) {
@@ -194,7 +211,7 @@ double TreeNode::get_coordinator_probability_for_task(const int &task_index, con
 	return p_prior;
 }
 
-double TreeNode::probability_update_inclusive(double a, double b) {
+double TreeNode::probability_update_inclusive(const double &a, const double &b) {
 	return a + b - a*b;
 }
 
@@ -285,7 +302,7 @@ void TreeNode::monte_carlo_tree_search(const int &max_depth, const double &time_
 		}
 	}
 	else {
-		//UE_LOG(LogTemp, Warning, TEXT("TreeNode::greedy_search: could not find goal child" << std::endl;
+		//printf("TreeNode::monte carlo tree search: could not find goal child");
 	}
 }
 
@@ -448,6 +465,48 @@ void TreeNode::greedy_search(const int &max_depth, const double &time_in, std::v
 	}
 }
 
+// greedy search up through a specified depth
+void TreeNode::greedy_search(const int &max_depth, const double &time_in, std::vector<int> &available_tasks) {
+	// if I have searched deep enough, stop
+	if (this->my_depth > max_depth) {
+		return;
+	}
+
+	// if I don't have children, make them
+	if (this->children.size() == 0) {
+		this->make_children(available_tasks);
+	}
+
+	// if I am able to find a best child
+	if (this->children.size() > 0 && this->greedy_find_child(time_in)) {
+
+		// if completing a task was selected then mark it complete
+		if (this->children[this->max_child_index]->task && this->children[this->max_child_index]->value > 0.0) {
+			// index of task completed
+			int task_index = this->children[this->max_child_index]->task->get_index();
+
+			// remove from available tasks
+			int at_index = -1;
+			for (size_t i = 0; i < available_tasks.size(); i++) {
+				if (available_tasks[i] == task_index) {
+					at_index = i;
+					break;
+				}
+			}
+			available_tasks.erase(available_tasks.begin() + at_index);
+
+			// perform the search
+			//printf("-------------------Searching child %i----------------"), this->max_child_index);
+			this->children[this->max_child_index]->greedy_search(max_depth, this->children[this->max_child_index]->my_time, available_tasks);
+
+			// if completing a task was selected then un-mark it
+			available_tasks.insert(available_tasks.begin() + at_index, task_index);
+		}
+	}
+	else {
+		//printf("TreeNode::greedy_search: could not find goal child");
+	}
+}
 
 bool TreeNode::greedy_find_child(const double &time_in) {
 	if (world && this->children.size() > 0) { // has tasks and not NULL

@@ -25,7 +25,7 @@ public:
 	double get_dt() { return this->dt; };
 	double get_end_time() { return this->end_time; };
 	cv::String get_task_selection_method() { return this->task_selection_method[this->test_iter]; };
-	std::vector<bool> get_task_status_list() { return this->task_status_list; };
+	void get_task_status_list(std::vector<bool> &task_status, std::vector<int> &task_set);
 	std::string get_mcts_search_type() { return this->mcts_search_type; };
 	std::string get_mcts_reward_type() { return this->mcts_reward_type; };
 	std::string get_impact_style() { return this->impact_style; };

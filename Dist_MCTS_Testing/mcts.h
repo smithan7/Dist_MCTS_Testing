@@ -29,8 +29,8 @@ public:
 	void set_task_index(const int &ti);
 
 	// call from parent not self
-	void search_from_root(std::vector<bool> &task_status, const int &last_planning_iter_end, const int &planning_iter);
-	void search(const int &depth_in, double &passed_reward, const double &time_in, std::vector<bool> &task_status, const int &last_planning_iter_end, const int &planning_iter);
+	void search_from_root(std::vector<bool> &task_status, std::vector<int> &task_set, const int &last_planning_iter_end, const int &planning_iter);
+	void search(const int &depth_in, double &passed_reward, const double &time_in, std::vector<bool> &task_status, std::vector<int> &task_set, const int &last_planning_iter_end, const int &planning_iter);
 	bool kid_pruning_heuristic(const std::vector<bool> &task_status);
 	void reset_task_availability_probability() { this->probability_task_available = -1.0; };
 	void set_probability(const double &sum_value, const double &parent_probability);
@@ -44,9 +44,10 @@ public:
 
 private:
 	// rollout does not create new nodes
-	void rollout(const int &c_index, const int &rollout_depth, const double&time_in, std::vector<bool> &task_status, double &passed_value);
-	bool make_kids(std::vector<bool> &task_status);
+	void rollout(const int &c_index, const int &rollout_depth, const double&time_in, std::vector<bool> &task_status, std::vector<int> &task_set, double &passed_value);
+	bool make_kids(std::vector<bool> &task_status, std::vector<int> &task_set);
 	bool make_nbr_kids(const std::vector<bool> &task_status);
+	void keep_n_best_kids(MCTS* kiddo);
 	void find_max_branch_value_kid(); // find the maximum expected value kid
 	void find_min_branch_value_kid(); // find the minimum expected value kid 
 	void find_sum_kid_branch_value(); // find the sum of all of my kids branch values

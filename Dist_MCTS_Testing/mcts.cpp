@@ -84,7 +84,7 @@ MCTS::MCTS(World* world, Map_Node* task_in, Agent* agent_in, MCTS* parent, const
 	this->sampling_probability_threshold = 0.01; // how low of probability will I continue to sample and report
 }
 
-bool MCTS::make_kids( std::vector<bool> &task_status ) {
+bool MCTS::make_kids( std::vector<bool> &task_status, std::vector<int> &task_set ) {
 	if (this->kids.size() > 0) {
 		for (size_t i = 0; i < this->kids.size(); i++) {
 			this->kids[i]->burn_branches();
@@ -97,39 +97,16 @@ bool MCTS::make_kids( std::vector<bool> &task_status ) {
 
 	bool kids_made = false;
 	// potentially add a kid for each active task
-	for (size_t i = 0; i < task_status.size(); i++) {
-		// if task i needs to be completed
-		if (task_status[i]) {
-			MCTS* kiddo = new MCTS(world, world->get_nodes()[i], this->agent, this, int(this->kids.size()), this->completion_time);
+	for (size_t j = 0; j < task_set.size(); j++) {
+		// which task am I looking at
+		int ti = task_set[j];
+		// if task ti needs to be completed
+		if (task_status[ti]) {
+			MCTS* kiddo = new MCTS(world, world->get_nodes()[ti], this->agent, this, int(this->kids.size()), this->completion_time);
 			if (kiddo->kid_pruning_heuristic(task_status)) {
-				this->kids.push_back(kiddo);
-
-				/*
 				kids_made = true;
-				if (kids.size() > 0) {
-					// only keep the top X kids
-					int n_kids = this->kids.size();
-					bool kid_added = false;
-					for (int i = 0; i < n_kids; i++) {
-						if (kiddo->get_expected_value() > this->kids[i]->get_expected_value()) {
-							this->kids.insert(this->kids.begin() + i, kiddo);
-							kid_added = true;
-							break;
-						}
-					}
-					if (kid_added && this->kids.size() > this->world->get_mcts_n_kids()) {
-						delete this->kids[this->kids.size() - 1];
-						this->kids.erase(this->kids.begin() + this->world->get_mcts_n_kids());
-					}
-					else if(!kid_added && this->kids.size() < this->world->get_mcts_n_kids()){
-						this->kids.push_back(kiddo);
-					}
-				}
-				else {
-					this->kids.push_back(kiddo);
-				}
-				*/
-				
+				// this->keep_n_best_kids(kiddo, n);
+				this->kids.push_back(kiddo);				
 				
 			}
 			else {
@@ -147,6 +124,31 @@ bool MCTS::make_kids( std::vector<bool> &task_status ) {
 	}
 	else {
 		return false;
+	}
+}
+
+void MCTS::keep_n_best_kids(MCTS* kiddo) {
+	if (kids.size() > 0) {
+		// only keep the top X kids
+		int n_kids = this->kids.size();
+		bool kid_added = false;
+		for (int i = 0; i < n_kids; i++) {
+			if (kiddo->get_expected_value() > this->kids[i]->get_expected_value()) {
+				this->kids.insert(this->kids.begin() + i, kiddo);
+				kid_added = true;
+				break;
+			}
+		}
+		if (kid_added && this->kids.size() > this->world->get_mcts_n_kids()) {
+			delete this->kids[this->kids.size() - 1];
+			this->kids.erase(this->kids.begin() + this->world->get_mcts_n_kids());
+		}
+		else if(!kid_added && this->kids.size() < this->world->get_mcts_n_kids()){
+			this->kids.push_back(kiddo);
+		}
+	}
+	else {
+		this->kids.push_back(kiddo);
 	}
 }
 
@@ -291,7 +293,7 @@ void MCTS::set_probability(const double &sum_value, const double &parent_probabi
 	this->probability = parent_probability * this->branch_value / sum_value;
 }
 
-void MCTS::rollout(const int &c_index, const int &rollout_depth, const double &time_in, std::vector<bool> &task_status, double &passed_branch_value) {
+void MCTS::rollout(const int &c_index, const int &rollout_depth, const double &time_in, std::vector<bool> &task_status, std::vector<int> &task_set, double &passed_branch_value) {
 	if (rollout_depth > this->max_rollout_depth || time_in > this->world->get_end_time()) {
 		return;
 	}
@@ -300,7 +302,8 @@ void MCTS::rollout(const int &c_index, const int &rollout_depth, const double &t
 	double max_comp_reward = 0.0; // I only want positive rewards!
 	double max_comp_time = 0.0;
 
-	for (size_t i = 0; i < task_status.size(); i++) { // this intentionally does not use kids to rollout, rolled out nodes don't have kids and I probably don't want to make them yet.
+	for (size_t j = 0; j < task_set.size(); j++) { // this intentionally does not use kids to rollout, rolled out nodes don't have kids and I probably don't want to make them yet.
+		int i = task_set[j];
 		if (task_status[i]) {
 			double e_dist = double(INFINITY);
 			// get euclidean dist first
@@ -331,8 +334,9 @@ void MCTS::rollout(const int &c_index, const int &rollout_depth, const double &t
 		passed_branch_value += max_comp_reward; // add this iteration's reward
 
 		// search below
+		//TODO::remove and add back in the element in task set
 		task_status[max_index] = false; // set task I am about to rollout as complete
-		rollout(max_index, rollout_depth + 1, max_comp_time, task_status, passed_branch_value); // rollout selected task
+		rollout(max_index, rollout_depth + 1, max_comp_time, task_status, task_set, passed_branch_value); // rollout selected task
 		task_status[max_index] = true; // reset task I just rolledout
 
 		return;
@@ -552,7 +556,7 @@ void MCTS::update_kid_values_with_new_probabilities() {
 }
 
 
-void MCTS::search_from_root(std::vector<bool> &task_status, const int &last_planning_iter_end, const int &planning_iter) {
+void MCTS::search_from_root(std::vector<bool> &task_status, std::vector<int> &task_set, const int &last_planning_iter_end, const int &planning_iter) {
 
 	//make sure work time is set
 	if (this->work_time < 0.0) {
@@ -602,7 +606,7 @@ void MCTS::search_from_root(std::vector<bool> &task_status, const int &last_plan
 
 			// search the kid's branch 
 			task_status[gc->get_task_index()] = false; // simulate completing the task
-			gc->search(1, kids_branch_value, this->completion_time, task_status, last_planning_iter_end, planning_iter);
+			gc->search(1, kids_branch_value, this->completion_time, task_status, task_set, last_planning_iter_end, planning_iter);
 			task_status[gc->get_task_index()] = true; // mark the task incomplete, undo simulation
 
 			if (this->search_type == "SW-UCT") {
@@ -615,10 +619,10 @@ void MCTS::search_from_root(std::vector<bool> &task_status, const int &last_plan
 	}
 	else {
 		// I don't have kids, make kids and rollout best kid
-		if (this->make_kids(task_status)) {
+		if (this->make_kids(task_status, task_set)) {
 			MCTS* gc = this->kids[this->max_kid_index];
 			task_status[gc->get_task_index()] = false;
-			gc->rollout(gc->get_task_index(), 0, gc->completion_time, task_status, gc->rollout_reward);
+			gc->rollout(gc->get_task_index(), 0, gc->completion_time, task_status, task_set, gc->rollout_reward);
 			task_status[gc->get_task_index()] = true;
 		}
 	}
@@ -627,7 +631,7 @@ void MCTS::search_from_root(std::vector<bool> &task_status, const int &last_plan
 	this->find_max_branch_value_kid();
 }
 
-void MCTS::search(const int &depth_in, double &passed_branch_value, const double &time_in, std::vector<bool> &task_status, const int &last_planning_iter_end, const int &planning_iter) {
+void MCTS::search(const int &depth_in, double &passed_branch_value, const double &time_in, std::vector<bool> &task_status, std::vector<int> &task_set, const int &last_planning_iter_end, const int &planning_iter) {
 	
 	if (task_status[this->task_index] == true) {
 		std::cout << "bad task" << std::endl;
@@ -668,7 +672,7 @@ void MCTS::search(const int &depth_in, double &passed_branch_value, const double
 
 			// search the kid's branch 
 			task_status[gc->get_task_index()] = false; // simulate completing the task
-			gc->search(depth_in + 1, kids_branch_value, this->completion_time, task_status, last_planning_iter_end, planning_iter);
+			gc->search(depth_in + 1, kids_branch_value, this->completion_time, task_status, task_set, last_planning_iter_end, planning_iter);
 			task_status[gc->get_task_index()] = true; // mark the task incomplete, undo simulation
 
 			// update uct sutff
@@ -683,10 +687,10 @@ void MCTS::search(const int &depth_in, double &passed_branch_value, const double
 	}
 	else {
 		// I don't have kids, make kids and rollout best kid
-		if (this->make_kids(task_status)) {
+		if (this->make_kids(task_status, task_set)) {
 			MCTS* gc = this->kids[this->max_kid_index];
 			task_status[gc->get_task_index()] = false;
-			gc->rollout(gc->get_task_index(), 0, gc->completion_time, task_status, gc->rollout_reward);
+			gc->rollout(gc->get_task_index(), 0, gc->completion_time, task_status, task_set, gc->rollout_reward);
 			task_status[gc->get_task_index()] = true;
 		}
 	}

@@ -122,6 +122,7 @@
     <ClInclude Include="Goal.h" />
     <ClInclude Include="Map_Node.h" />
     <ClInclude Include="Proabability_Node.h" />
+    <ClInclude Include="Sorted_List.h" />
     <ClInclude Include="TreeNode.h" />
     <ClInclude Include="mcts.h" />
     <ClInclude Include="World.h" />
@@ -135,6 +136,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Map_Node.cpp" />
     <ClCompile Include="Proability_Node.cpp" />
+    <ClCompile Include="Sorted_List.cpp" />
     <ClCompile Include="TreeNode.cpp" />
     <ClCompile Include="mcts.cpp" />
     <ClCompile Include="World.cpp" />

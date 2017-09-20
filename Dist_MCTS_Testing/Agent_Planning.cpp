@@ -7,6 +7,9 @@
 #include "Goal.h"
 
 #include <iostream>
+#include <fstream>
+
+
 
 
 Agent_Planning::Agent_Planning(Agent* agent, World* world_in){
@@ -311,7 +314,9 @@ void Agent_Planning::MCTS_task_selection(){
 
 	double reward_in = 0.0;
 	double s_time = double(clock()) / double(CLOCKS_PER_SEC);
-	std::vector<bool> task_list = this->world->get_task_status_list();
+	std::vector<bool> task_list;
+	std::vector<int> task_set;
+	this->world->get_task_status_list(task_list, task_set);
 	
 	if (!this->mcts) {
 		this->mcts = new MCTS(this->world, this->world->get_nodes()[this->get_agent()->get_loc()], this->get_agent(), NULL, 0, this->world->get_c_time());
@@ -319,7 +324,7 @@ void Agent_Planning::MCTS_task_selection(){
 		while (double(clock()) / double(CLOCKS_PER_SEC) - s_time <= 99.0*this->world->get_dt()) {
 			this->planning_iter++;
 			int depth_in = 0;
-			this->mcts->search_from_root(task_list, last_planning_iter_end, planning_iter);
+			this->mcts->search_from_root(task_list, task_set, last_planning_iter_end, planning_iter);
 		}
 	}
 
@@ -331,19 +336,28 @@ void Agent_Planning::MCTS_task_selection(){
 	while( double(clock()) / double(CLOCKS_PER_SEC) - s_time <= this->world->get_dt()){
 		this->planning_iter++;
 		int depth_in = 0;
-		this->mcts->search_from_root(task_list, last_planning_iter_end, planning_iter);
+		this->mcts->search_from_root(task_list, task_set, last_planning_iter_end, planning_iter);
 	}
-	std::cout << "planning_iter: " << planning_iter << std::endl;
+	//std::cout << "planning_iter: " << planning_iter << std::endl;
+	int planning_iters = this->planning_iter - this->last_planning_iter_end;
 	this->last_planning_iter_end = this->planning_iter;
 	//printf("planning iter %i " << this->planning_iter << " added : " << this->planning_iter - this->last_planning_iter << std::endl;
-	//this->last_planning_iter = this->planning_iter;
-
+	
 	s_time = double(clock()) / double(CLOCKS_PER_SEC);
 	this->agent->get_coordinator()->reset_prob_actions(); // clear out probable actions before adding the new ones
 	this->mcts->sample_tree_and_advertise_task_probabilities(this->agent->get_coordinator());
 	//printf("sampling time: %0.2f \n", double(clock()) / double(CLOCKS_PER_SEC) - s_time);
 
-	this->agent->get_coordinator()->print_prob_actions();
+	/*
+	std::ofstream outfile;
+	outfile.open("planning_time.txt", std::ios::app);
+	char buffer[50];
+	int n = sprintf_s(buffer, "%i, %0.6f\n", planning_iters, double(clock()) / double(CLOCKS_PER_SEC) - s_time);
+	outfile << buffer;
+	outfile.close();
+	*/
+
+	//this->agent->get_coordinator()->print_prob_actions();
 
 	//? - comeback to this after below: why does planning iter for agent 0 only do a few iters but for agent 1 it does 100s?
 

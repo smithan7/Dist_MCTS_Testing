@@ -15,7 +15,7 @@ int main() {
 	// builds the complete world, maps, node, agents, tasks
 	int params = -1; // 5 tasks with 1 agent 5673, 100 tasks with 0.25 p_active and 1 agent 15591, 14310 20 nodes, 1 agent used to debug planning
 	bool display_map = true;
-	bool score_run = true;
+	bool score_run = false;
 
 	std::vector<cv::String> task_selection_methods;
 

@@ -64,6 +64,10 @@ public:
 	// greedy search up through a specified depth
 	void greedy_search(const int &max_depth, const double &initial_time, std::vector<bool> &task_status);
 
+	// greedy search up through a specified depth
+	void greedy_search(const int &max_depth, const double &initial_time, std::vector<int> &available_tasks);
+
+
 	// breadth first search through depth
 	void breadth_first_search(const int &max_depth, const double &time_in, std::vector<bool> &task_status, double &max_branch_value);
 
@@ -92,7 +96,10 @@ public:
 	double get_coordinator_probability_for_task(const int &task_index, const double &task_completion_time);
 
 	// initialize all of my children
-	void make_children(std::vector<bool> &task_status);
+	void make_children(const std::vector<bool> &task_status);
+
+	// initialize all of my children
+	void make_children(const std::vector<int> &available_tasks);
 
 	// find the best child and assign their values, times, and my max child value
 	bool greedy_find_child(const double &time_in);
@@ -101,10 +108,10 @@ public:
 	bool mcts_find_child(const double &time_in);
 
 	// how long to travel from one location to given task and complete it
-	bool get_travel_and_task_completion_time(int start_node, int goal_node, double time_in, double &distance, double &completion_time);
+	bool get_travel_and_task_completion_time(const int &start_node, const int &goal_node, const double &time_in, double &distance, double &completion_time);
 
 	// update multiple path probability
-	double probability_update_inclusive(double a, double b);
+	double probability_update_inclusive(const double &a, const double &b);
 
 	// assemble the market by sampling the tree
 	void assemble_market_weighted(Agent_Coordinator* coord, const double &threshold, const int &max_depth, int parent_index);

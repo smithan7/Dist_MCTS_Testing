@@ -12,20 +12,30 @@ public:
 	// destructor
 	~Probability_Node();
 
-	// insert a new possible arrival time and update following arrival times
-	void add_stop_to_my_path(double time, double prob);
+	// update using a new nodes
+	void update(Probability_Node* msg);
+
 
 	// insert a new possible arrival time and update following arrival times
-	void add_stop_to_shared_path(double time, double prob);
+	void add_stop_to_my_path(const double &time, const double &prob);
+
+	// insert a new possible arrival time and update following arrival times
+	void add_stop_to_shared_path(const double &time, const double &prob);
 
 	// update probability, a + b - a*b
-	double probability_update_inclusive(double a, double b);
+	double probability_update_inclusive(const double &plan, const double &msg);
 
 	// update probability for exclusive events, a + b
-	double probability_update_exclusive(double a, double b);
+	double probability_update_exclusive(const double &plan, const double &msg);
+
+	// update probability by removing the msg
+	double probability_removal_inclusive(const double & plan, const double & rem);
+
+	// update probability by removing the msg
+	double probability_removal_exclusive(const double & plan, const double & rem);
 
 	// return the probability at time specified
-	double get_probability_at_time(double time);
+	double get_probability_at_time(const double &time);
 
 	// clear all stops except 0, 0.0 and inf, 1.0
 	void reset();
@@ -37,7 +47,7 @@ public:
 	std::vector<double>& get_probability_of_completion() { return this->probability_of_completion; };
 
 	// return vector containing all arrival times
-	std::vector<double>& get_arrival_time() { return this->completion_time; }
+	std::vector<double>& get_completion_time() { return this->completion_time; }
 
 	// return single int giving task index correspoinding to this node
 	int get_task_index() { return this->task_index; }
@@ -49,15 +59,20 @@ public:
 	bool get_claims_after(double query_time, std::vector<double> &probs, std::vector<double> &times);
 
 private:
+	// when will it be completed
 	std::vector<double> completion_time;
+	// what is the probability it will be completed
 	std::vector<double> probability_of_completion;
+	// when was the report made about it being completed
+	std::vector<int> report_times;
+	// who made the report
+	std::vector<int> reporting_agent;
+
 	int task_index;
 
 	double getCDF(double x);
 	double getPDF(double x);
 	double mean, stan_dev;
 	double pi, sqrt_pi;
-
-
 };
 
